@@ -21,6 +21,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Request logger middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
 // CORS configuration
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'

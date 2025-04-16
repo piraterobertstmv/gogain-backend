@@ -95,11 +95,14 @@ router.delete('/users/:id', async (req, res, next) => {
 // })
 
 router.post('/users/login', async (req, res) => {
+    console.log(`Login attempt for email: ${req.body.email}`);
     try {
         const user = await User.findUser(req.body.email, req.body.password);
         const authToken = await user.generateAuthTokenAndSaveUser();
+        console.log(`Successful login for user: ${user.email} (${user._id})`);
         res.send({user, authToken});
     } catch(e) {
+        console.log(`Failed login attempt for ${req.body.email}: ${e.message}`);
         res.status(400).send(e);
     }
 })

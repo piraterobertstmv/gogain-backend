@@ -24,7 +24,7 @@ app.use((req, res, next) => {
 // CORS configuration
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://your-frontend-domain.com']  // Replace with your actual frontend domain
+    ? ['https://gogain-frontend.vercel.app', 'https://gogain-frontend-fresh.vercel.app']  // Updated with actual frontend domains
     : 'http://localhost:5173',
   credentials: true,
   optionsSuccessStatus: 200
@@ -43,5 +43,9 @@ connectDb().catch(err => console.log(err));
 
 app.listen(port, () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-    console.log(`Server listening at http://localhost:${port}`);
+    if (process.env.NODE_ENV === 'production') {
+        console.log(`Server listening on port ${port}`);
+    } else {
+        console.log(`Server listening at http://localhost:${port}`);
+    }
 });

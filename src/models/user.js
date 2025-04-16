@@ -62,10 +62,10 @@ userSchema.methods.toJSON = function() {
 }
 
 userSchema.methods.generateAuthTokenAndSaveUser = async function() {
-    const authToken = jwt.sign({ _id: this._id.toString() }, 'foo');
-    this.authTokens.push({ authToken });
+    const token = jwt.sign({ _id: this._id.toString() }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    this.authTokens.push({ authToken: token });
     await this.save();
-    return authToken;
+    return token;
 }
 
 userSchema.statics.findUser = async(email, password) => {

@@ -97,13 +97,24 @@ router.delete('/users/:id', async (req, res, next) => {
 router.post('/users/login', async (req, res) => {
     console.log(`Login attempt for email: ${req.body.email}`);
     try {
+        if (!req.body.email || !req.body.password) {
+            console.log('Missing email or password');
+            return res.status(400).send({ message: 'Email and password are required' });
+        }
+        
+        console.log('Finding user in database...');
         const user = await User.findUser(req.body.email, req.body.password);
+        console.log(`User found: ${user._id}`);
+        
+        console.log('Generating auth token...');
         const authToken = await user.generateAuthTokenAndSaveUser();
+        console.log('Auth token generated successfully');
+        
         console.log(`Successful login for user: ${user.email} (${user._id})`);
         res.send({user, authToken});
     } catch(e) {
         console.log(`Failed login attempt for ${req.body.email}: ${e.message}`);
-        res.status(400).send(e);
+        res.status(400).send({ message: e.message || 'Login failed' });
     }
 })
 

@@ -10,7 +10,7 @@ const costsRoutes = require('./src/routes/costs');
 const cors = require('cors');
 const express = require('express');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 // Security headers
 app.use((req, res, next) => {
@@ -45,13 +45,30 @@ app.use(clientRoutes);
 app.use(transactionRoutes);
 app.use(costsRoutes);
 
-connectDb().catch(err => console.log(err));
-
-app.listen(port, () => {
-    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
-    if (process.env.NODE_ENV === 'production') {
-        console.log(`Server listening on port ${port}`);
-    } else {
-        console.log(`Server listening at http://localhost:${port}`);
-    }
+// Basic route to confirm the server is running
+app.get('/', (req, res) => {
+  res.send('GoGain API is running. Please use the appropriate endpoints.');
 });
+
+// Handle database connection and server startup
+async function startServer() {
+  try {
+    // Connect to MongoDB
+    await connectDb();
+    
+    // Start the server
+    app.listen(port, () => {
+      console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode`);
+      if (process.env.NODE_ENV === 'production') {
+        console.log(`Server listening on port ${port}`);
+      } else {
+        console.log(`Server listening at http://localhost:${port}`);
+      }
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();

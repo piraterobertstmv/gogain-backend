@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 const validator = require('validator');
 
 const transactionSchema = new mongoose.Schema({
+    index: {
+        type: Number,
+        default: 1
+    },
     date: {
         type: Date,
         required: true

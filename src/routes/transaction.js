@@ -2,6 +2,23 @@ const express = require('express');
 const Transaction = require('../models/transaction');
 const router = new express.Router();
 
+// Add this new endpoint to get the last transaction index
+router.get('/transactions/last-index', async (req, res, next) => {
+    try {
+        // Find the transaction with the highest index
+        const lastTransaction = await Transaction.findOne({})
+            .sort({ index: -1 }) // Sort by index in descending order
+            .limit(1); // Get only one document
+        
+        // If no transactions exist yet, return 0
+        const lastIndex = lastTransaction ? lastTransaction.index : 0;
+        
+        res.status(200).send({ lastIndex });
+    } catch(e) {
+        console.error('Error fetching last transaction index:', e);
+        res.status(400).send(e);
+    }
+});
 
 router.post('/transaction', async (req, res, next) => {
     const transaction = new Transaction(req.body);
@@ -117,6 +134,9 @@ router.post('/transactions/batch', async (req, res, next) => {
             // Create a copy of the transaction to avoid mutating the original
             const processedTransaction = { ...transaction };
             
+            // Keep the index field as provided by the frontend
+            // It should already be set to the correct sequential value
+            
             // Map the originalClientName to clientName if available
             if (processedTransaction.originalClientName) {
                 processedTransaction.clientName = processedTransaction.originalClientName;
@@ -159,7 +179,10 @@ router.post('/transactions/batch', async (req, res, next) => {
         // Create and save all transactions
         const savedTransactions = await Transaction.insertMany(processedTransactions);
         
-        res.status(201).send({ transactions: savedTransactions });
+        res.status(201).send({ 
+            transactions: savedTransactions, 
+            insertedCount: savedTransactions.length
+        });
     } catch(e) {
         console.error('Error in batch transaction creation:', e);
         res.status(400).send(e);

@@ -64,9 +64,12 @@ const transactionSchema = new mongoose.Schema({
 
 transactionSchema.methods.toJSON = function() {
     const transaction = this.toObject();
+    
+    // Exclude the redundant index field from API responses
+    delete transaction.index;
+    
     return transaction;
 }
-
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 

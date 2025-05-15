@@ -30,7 +30,12 @@ app.use((req, res, next) => {
 // CORS configuration
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://gogain-frontend.vercel.app', 'https://gogain-frontend-fresh.vercel.app', 'https://gogain-frontend-spir.vercel.app', 'https://gogain-frontend-bga818ube-piraterobertstmvs-projects.vercel.app']  // Updated with actual frontend domains
+    ? [
+        'https://gogain-frontend.vercel.app', 
+        'https://gogain-frontend-git-main-piraterobertstmvs-projects.vercel.app', 
+        'https://gogain-frontend-bga818ube-piraterobertstmvs-projects.vercel.app',
+        'https://gogain-frontend-n8ylpsmas-piraterobertstmvs-projects.vercel.app'
+      ]
     : 'http://localhost:5173',
   credentials: true,
   optionsSuccessStatus: 200

@@ -9,11 +9,11 @@ const serviceSchema = new mongoose.Schema({
     },
     cost: {
         type: Number,
-        required: true
+        default: 0
     },
     tax: {
         type: Number,
-        required: true
+        default: 0
     }
 });
 

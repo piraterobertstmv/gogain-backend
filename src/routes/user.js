@@ -11,7 +11,32 @@ router.post('/users', async (req, res, next) => {
         const authToken = await user.generateAuthTokenAndSaveUser();
         res.status(201).send({ user, authToken });
     } catch(e) {
-        res.status(400).send(e);
+        console.error('Error creating user:', e);
+        
+        // Handle validation errors with more detailed messages
+        if (e.name === 'ValidationError') {
+            const errors = {};
+            // Extract validation error messages
+            for (const field in e.errors) {
+                errors[field] = e.errors[field].message;
+            }
+            return res.status(400).send({ 
+                message: 'Validation failed',
+                errors 
+            });
+        }
+        
+        // Handle duplicate key (email) error
+        if (e.code === 11000) {
+            return res.status(400).send({ 
+                message: 'Email is already in use' 
+            });
+        }
+        
+        // Generic error handling
+        res.status(400).send({ 
+            message: e.message || 'Error creating user'
+        });
     }
 });
 

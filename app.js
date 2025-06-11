@@ -12,6 +12,18 @@ const express = require('express');
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Configure CORS
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://gogain-frontend.vercel.app', 'https://gogain.co', /\.vercel\.app$/] 
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204,
+  maxAge: 86400 // 24 hours
+};
+app.use(cors(corsOptions));
+
 // Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -27,21 +39,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS configuration
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? [
-        'https://gogain-frontend.vercel.app', 
-        'https://gogain-frontend-git-main-piraterobertstmvs-projects.vercel.app', 
-        'https://gogain-frontend-bga818ube-piraterobertstmvs-projects.vercel.app',
-        'https://gogain-frontend-n8ylpsmas-piraterobertstmvs-projects.vercel.app'
-      ]
-    : 'http://localhost:5173',
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
 app.use(express.json());
 app.use(userRoutes);
 app.use(serviceRoutes);
@@ -53,6 +50,11 @@ app.use(costsRoutes);
 // Basic route to confirm the server is running
 app.get('/', (req, res) => {
   res.send('GoGain API is running. Please use the appropriate endpoints.');
+});
+
+// Simple ping endpoint for keep-alive requests
+app.get('/ping', (req, res) => {
+  res.status(200).send({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Handle database connection and server startup

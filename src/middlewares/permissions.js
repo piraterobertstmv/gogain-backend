@@ -145,8 +145,14 @@ const filterDataByUserAccess = (dataType) => {
                 });
             }
 
+            console.log(`[PERMISSIONS] Filtering ${dataType} for user: ${user.email}, role: ${user.role}`);
+            console.log(`[PERMISSIONS] Original data keys:`, Object.keys(req.originalData || {}));
+            console.log(`[PERMISSIONS] User assigned centers:`, user.assignedCenters);
+            console.log(`[PERMISSIONS] User assigned services:`, user.assignedServices);
+
             // Super admins can see all data
             if (user.role === 'super_admin') {
+                console.log(`[PERMISSIONS] Super admin detected - showing all data`);
                 req.filteredData = req.originalData || {};
                 return next();
             }
@@ -158,12 +164,12 @@ const filterDataByUserAccess = (dataType) => {
                 case 'transactions':
                     if (req.originalData && req.originalData.transactions) {
                         filteredData.transactions = req.originalData.transactions.filter(transaction => {
-                            // Check center access
-                            if (transaction.center && !user.canAccessCenter(transaction.center)) {
+                            // Check center access - use centerName field
+                            if (transaction.centerName && !user.canAccessCenter(transaction.centerName)) {
                                 return false;
                             }
-                            // Check service access
-                            if (transaction.service && !user.canAccessService(transaction.service)) {
+                            // Check service access - use serviceName field
+                            if (transaction.serviceName && !user.canAccessService(transaction.serviceName)) {
                                 return false;
                             }
                             return true;
@@ -182,7 +188,7 @@ const filterDataByUserAccess = (dataType) => {
                 case 'centers':
                     if (req.originalData && req.originalData.centers) {
                         filteredData.centers = req.originalData.centers.filter(center => 
-                            user.canAccessCenter(center._id)
+                            user.canAccessCenter(center.name)
                         );
                     }
                     break;
@@ -190,7 +196,7 @@ const filterDataByUserAccess = (dataType) => {
                 case 'services':
                     if (req.originalData && req.originalData.services) {
                         filteredData.services = req.originalData.services.filter(service => 
-                            user.canAccessService(service._id)
+                            user.canAccessService(service.name)
                         );
                     }
                     break;

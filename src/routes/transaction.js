@@ -2,6 +2,16 @@ const express = require('express');
 const Transaction = require('../models/transaction');
 const router = new express.Router();
 
+// Add a /transactions route for compatibility with frontend
+router.get('/transactions', async (req, res, next) => {
+    try {
+        const transactions = await Transaction.find({});
+        res.status(200).send({ transactions });
+    } catch(e) {
+        res.status(400).send(e);
+    }
+});
+
 // Add this new endpoint to get the last transaction index
 router.get('/transactions/last-index', async (req, res, next) => {
     try {

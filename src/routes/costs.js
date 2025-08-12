@@ -1,85 +1,59 @@
 const express = require('express');
 const Costs = require('../models/costs');
-const authentification = require('../middlewares/authentification');
-const { 
-    requirePermission, 
-    filterDataByUserAccess 
-} = require('../middlewares/permissions');
 const router = new express.Router();
 
-// Create new costs - Requires authentication and create permission
-router.post('/costs', authentification, requirePermission('costs', 'create'), async (req, res, next) => {
+router.post('/costs', async (req, res, next) => {
     const costs = new Costs(req.body);
 
     try {
         await costs.save();
         res.status(201).send({ costs });
     } catch(e) {
-        console.error('Error creating costs:', e);
-        res.status(400).send({ message: 'Error creating costs', error: e.message });
+        res.status(400).send(e);
     }
 });
 
-// Get all costs - Requires authentication and view permission
-router.get('/costs', authentification, requirePermission('costs', 'view'), async (req, res, next) => {
+router.get('/costs', async (req, res, next) => {
     try {
-        // Store original data for filtering
-        req.originalData = { costs: await Costs.find({}) };
-        
-        // Filter data based on user access
-        filterDataByUserAccess('costs')(req, res, () => {
-            const costs = req.filteredData.costs || [];
-            res.status(200).send({ costs });
-        });
+        const costs = await Costs.find({});
+        res.status(201).send({ costs });
     } catch(e) {
-        console.error('Error fetching costs:', e);
-        res.status(500).send({ message: 'Error fetching costs' });
+        res.status(400).send(e);
     }
 });
 
-// Get specific costs - Requires authentication and view permission
-router.get('/costs/:id', authentification, requirePermission('costs', 'view'), async (req, res, next) => {
+router.get('/costs/:id', async (req, res, next) => {
     const costsId = req.params.id;
 
     try {
         const costs = await Costs.findOne({ _id: costsId });
-        
-        if (!costs) {
-            return res.status(404).send({ error: 'Costs not found' });
-        }
-        
-        res.status(200).send({ costs });
+        res.status(201).send({ costs });
     } catch(e) {
-        console.error('Error fetching costs:', e);
-        res.status(500).send({ message: 'Error fetching costs' });
+        res.status(400).send(e);
     }
 });
 
-// Update costs - Requires authentication and edit permission
-router.patch('/costs/:id', authentification, requirePermission('costs', 'edit'), async (req, res, next) => {
+router.patch('/costs/:id', async (req, res, next) => {
     const costsId = req.params.id;
     const costsModified = req.body;
 
     try {
         await Costs.updateOne({ _id: costsId }, { $set: costsModified });
-        const updatedCosts = await Costs.findById(costsId);
-        res.status(200).send({ costsId, updatedCosts });
+        const updatedCosts = await Costs.find({ _id: costsId });
+        res.status(201).send({ costsId, updatedCosts });
     } catch(e) {
-        console.error('Error updating costs:', e);
-        res.status(500).send({ message: 'Error updating costs' });
+        res.status(400).send(e);
     }
 });
 
-// Delete costs - Requires authentication and delete permission
-router.delete('/costs/:id', authentification, requirePermission('costs', 'delete'), async (req, res, next) => {
+router.delete('/costs/:id', async (req, res, next) => {
     const costsId = req.params.id;
 
     try {
         const deleteInfos = await Costs.deleteOne({ _id: costsId });
-        res.status(200).send({ costsId, deleteInfos });
+        res.status(201).send({ costsId, deleteInfos });
     } catch(e) {
-        console.error('Error deleting costs:', e);
-        res.status(500).send({ message: 'Error deleting costs' });
+        res.status(400).send(e);
     }
 });
 

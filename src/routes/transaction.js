@@ -1,6 +1,60 @@
 const express = require('express');
 const Transaction = require('../models/transaction');
+const Client = require('../models/client');
+const mongoose = require('mongoose');
 const router = new express.Router();
+
+// Helper function to create client if it doesn't exist
+async function handleClientCreation(clientValue) {
+    // If clientValue is a valid ObjectId, it's an existing client
+    if (mongoose.Types.ObjectId.isValid(clientValue)) {
+        return clientValue;
+    }
+    
+    // If clientValue is a string, it's a new client name - create the client
+    if (typeof clientValue === 'string' && clientValue.trim()) {
+        const clientName = clientValue.trim();
+        
+        // Split name into first and last name (assume last name is first word, rest is first name)
+        const nameParts = clientName.split(' ');
+        const lastName = nameParts[0] || '';
+        const firstName = nameParts.slice(1).join(' ') || lastName;
+        
+        try {
+            // Check if client already exists with this name
+            const existingClient = await Client.findOne({
+                firstName: firstName,
+                lastName: lastName
+            });
+            
+            if (existingClient) {
+                return existingClient._id.toString();
+            }
+            
+            // Create new client
+            const newClient = new Client({
+                firstName: firstName,
+                lastName: lastName,
+                email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`, // Temporary email
+                phoneNumber: '',
+                gender: '',
+                birthdate: null,
+                zipcode: null,
+                city: '',
+                address: ''
+            });
+            
+            const savedClient = await newClient.save();
+            return savedClient._id.toString();
+            
+        } catch (error) {
+            console.error('Error creating client:', error);
+            throw error;
+        }
+    }
+    
+    return clientValue;
+}
 
 // Add this new endpoint to get the last transaction index
 router.get('/transactions/last-index', async (req, res, next) => {
@@ -21,12 +75,19 @@ router.get('/transactions/last-index', async (req, res, next) => {
 });
 
 router.post('/transaction', async (req, res, next) => {
-    const transaction = new Transaction(req.body);
-
     try {
+        const transactionData = { ...req.body };
+        
+        // Handle client creation if needed
+        if (transactionData.client) {
+            transactionData.client = await handleClientCreation(transactionData.client);
+        }
+        
+        const transaction = new Transaction(transactionData);
         await transaction.save();
         res.status(201).send({ transaction });
     } catch(e) {
+        console.error('Error creating transaction:', e);
         res.status(400).send(e);
     }
 });
@@ -130,9 +191,14 @@ router.post('/transactions/batch', async (req, res, next) => {
         }
         
         // Map original names to the proper fields for storage in the database
-        const processedTransactions = transactions.map(transaction => {
+        const processedTransactions = await Promise.all(transactions.map(async transaction => {
             // Create a copy of the transaction to avoid mutating the original
             const processedTransaction = { ...transaction };
+            
+            // Handle client creation if needed
+            if (processedTransaction.client) {
+                processedTransaction.client = await handleClientCreation(processedTransaction.client);
+            }
             
             // Keep the index field as provided by the frontend
             // It should already be set to the correct sequential value
@@ -174,7 +240,7 @@ router.post('/transactions/batch', async (req, res, next) => {
             delete processedTransaction._serviceDisplay;
             
             return processedTransaction;
-        });
+        }));
         
         // Create and save all transactions
         const savedTransactions = await Transaction.insertMany(processedTransactions);

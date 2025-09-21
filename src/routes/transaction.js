@@ -483,6 +483,64 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
             return '67d816374abe8436385a7ad5'; // PERSONAL EXPENSE
         };
 
+        // Function to map serviceName to GoGain service ID
+        const mapServiceNameToId = (serviceName) => {
+            if (!serviceName) return '67d816374abe8436385a7ad5'; // Default to PERSONAL EXPENSE
+            
+            const serviceNameLower = serviceName.toLowerCase().trim();
+            
+            // Create a mapping from service names to IDs (using existing category mapping as base)
+            const serviceNameMapping = {
+                // Direct service name mappings
+                'kinésitherapie': '66eb4ec8615c83d533d03887', // KINÉSITHERAPIE (30 Min)
+                'ostéopathie': '66eb4ee0615c83d533d0388a', // OSTÉOPATHIE (Bosquet)
+                'coaching': '67447edcb56b5793c0cda6db', // COACHING (45Min)
+                'hyatt coaching': '66eb4f14615c83d533d03892', // HYATT COACHING
+                'app': '67447fc9b56b5793c0cda791', // APP (TO C)
+                'gain one': '66eb4f0a615c83d533d03890', // GAIN ONE (3 months)
+                'app start': '66eb4f1b615c83d533d03894', // APP START (TO B)
+                'app boost': '66eb4f20615c83d533d03896', // APP BOOST ( TO B)
+                'rétrocession': '674c7163b56b5793c0cdb733', // RÉTROCESSION
+                'gain performance': '67447f0db56b5793c0cda70f', // GAIN PERFORMANCE (3 mois)
+                
+                // Common service categories
+                'personal expense': '67d816374abe8436385a7ad5', // PERSONAL EXPENSE
+                'frais banque': '67d816374abe8436385a7acf', // FRAIS BANQUE
+                'loyer cabinet': '67d816374abe8436385a7ad3', // LOYER CABINET
+                'mutuelle': '67d816374abe8436385a7ad7', // MUTUELLE
+                'leasing voiture': '67d816374abe8436385a7ad9', // LEASING VOITURE
+                'assurance': '67d816374abe8436385a7adf', // ASSURANCE
+                'internet': '67d816374abe8436385a7ae5', // INTERNET
+                'logiciel cabinet': '67d816374abe8436385a7add', // LOGICIEL CABINET
+                'charges sociales': '67d816374abe8436385a7ae1', // CHARGES SOCIALES
+                'masse salariale': '67d816374abe8436385a7acd', // MASSE SALARIALE
+                'credit cabinet': '67d816374abe8436385a7ae3', // CREDIT CABINET
+                'urssaf': '67d816374abe8436385a7ae7', // URSSAF/CHARGES SOCIALES
+                'mutuelle salarié': '67d816374abe8436385a7ae9', // MUTUELLE SALARIÉ
+                'prevoyance': '67d816374abe8436385a7adb', // PREVOYANCE
+                
+                // Default mappings
+                'other': '67d816374abe8436385a7ad5', // PERSONAL EXPENSE
+                'others': '67d816374abe8436385a7ad5', // PERSONAL EXPENSE
+                'unknown': '67d816374abe8436385a7ad5' // PERSONAL EXPENSE
+            };
+            
+            // Direct match
+            if (serviceNameMapping[serviceNameLower]) {
+                return serviceNameMapping[serviceNameLower];
+            }
+            
+            // Partial match - find if serviceName contains any of our mapped keywords
+            for (const [keyword, serviceId] of Object.entries(serviceNameMapping)) {
+                if (serviceNameLower.includes(keyword) || keyword.includes(serviceNameLower)) {
+                    return serviceId;
+                }
+            }
+            
+            // Default fallback
+            return '67d816374abe8436385a7ad5'; // PERSONAL EXPENSE
+        };
+
         // Function to determine default center for user
         const getDefaultCenterForUser = (user) => {
             if (!user || !user.centers || user.centers.length === 0) {
@@ -500,68 +558,60 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
         // Process each transaction from PDF extractor
         const processedTransactions = await Promise.all(transactions.map(async (transaction, idx) => {
             try {
-                // Extract and validate basic fields from real PDF extractor format
-                const rawDate = transaction.date || new Date().toISOString();
-                const date = parseDate(rawDate); // Handle DD/MM/YYYY format
-                const rawAmount = transaction.amount || '0';
-                const amount = parseAmount(rawAmount); // Handle "14,00" format
-                const description = transaction.description || 'PDF Import';
-                const category = transaction.category || 'other';
-                const clientName = transaction.clientName || extractClientFromDescription(description);
-                const confidence = transaction.confidence || 'unknown';
+                // Extract fields from the new PDF extractor format
+                const date = transaction.date ? new Date(transaction.date) : new Date();
+                const cost = parseFloat(transaction.cost) || 0;
+                const taxes = parseFloat(transaction.taxes) || 0;
+                const clientName = transaction.clientName || 'Unknown Client';
+                const serviceName = transaction.serviceName || 'Other';
+                const typeOfTransaction = transaction.typeOfTransaction || 'cost';
+                const typeOfMovement = transaction.typeOfMovement || 'card payment';
+                const frequency = transaction.frequency || 'ordinary';
+                const typeOfClient = transaction.typeOfClient || 'client';
 
                 console.log(`Processing PDF transaction ${idx + 1}:`, {
-                    rawDate,
-                    parsedDate: date,
-                    rawAmount,
-                    parsedAmount: amount,
-                    description,
-                    category,
+                    date,
+                    cost,
+                    taxes,
                     clientName,
-                    confidence
+                    serviceName,
+                    typeOfTransaction,
+                    typeOfMovement,
+                    frequency,
+                    typeOfClient
                 });
 
-                // Map category to service
-                const serviceId = mapCategoryToService(category);
+                // Map serviceName to service ID
+                const serviceId = mapServiceNameToId(serviceName);
                 
-                // Handle client creation (clientName becomes client)
+                // Handle client creation from clientName
                 const clientId = await handleClientCreation(clientName);
                 
-                // Get user's first assigned center (user who extracts PDF determines center)
+                // Get user's assigned center (user who extracts PDF determines center)
                 const centerId = getDefaultCenterForUser(req.user);
-                
-                // For PDF imports, amount with taxes = amount without taxes (no tax calculation)
-                const absoluteAmount = Math.abs(amount);
-                
-                // Determine transaction type based on amount (negative = cost, positive = revenue)
-                const typeOfTransaction = amount < 0 ? 'cost' : 'revenue';
 
-                // Create transaction object matching existing GoGain format
+                // Create transaction object with exact GoGain format
                 const processedTransaction = {
                     index: startIndex + idx + 1,
                     date: date,
                     center: centerId,
-                    centerName: undefined, // Let it be populated by center lookup
                     client: clientId,
-                    clientName: undefined, // Let it be populated by client lookup
-                    cost: absoluteAmount, // Amount with taxes = amount without taxes
-                    worker: req.user._id, // Worker = user who extracted PDF
-                    taxes: 0, // Always 0% taxes for PDF imports
+                    cost: cost,
+                    worker: req.user._id, // JWT user ID
+                    taxes: taxes,
                     typeOfTransaction: typeOfTransaction,
-                    typeOfMovement: 'bank transfer',
-                    frequency: 'ordinary',
-                    typeOfClient: 'client',
-                    service: serviceId,
-                    serviceName: undefined // Let it be populated by service lookup
+                    typeOfMovement: typeOfMovement,
+                    frequency: frequency,
+                    typeOfClient: typeOfClient,
+                    service: serviceId
                 };
 
                 console.log(`Processed transaction ${idx + 1}:`, {
                     clientName,
-                    category,
+                    serviceName,
                     mappedService: serviceId,
-                    amount: absoluteAmount,
-                    type: typeOfTransaction,
-                    confidence
+                    cost,
+                    typeOfTransaction
                 });
 
                 return processedTransaction;

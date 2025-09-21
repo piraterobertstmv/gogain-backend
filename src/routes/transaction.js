@@ -530,12 +530,12 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                     }
                 }
                 
-                console.log(`No service match found for: ${serviceName}, will use default`);
-                return null; // Let GoGain assign a default
+                console.log(`No service match found for: ${serviceName}, will use null`);
+                return null; // Return null - PDF extractor should provide correct service IDs
                 
             } catch (error) {
                 console.error('Error finding service:', error);
-                return null;
+                return null; // Return null - PDF extractor should provide correct service IDs
             }
         };
 

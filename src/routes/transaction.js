@@ -489,8 +489,17 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
             
             const serviceNameLower = serviceName.toLowerCase().trim();
             
-            // Create a mapping from service names to IDs (using existing category mapping as base)
+            // Create a mapping from service names to IDs based on screenshot service names
             const serviceNameMapping = {
+                // Services from screenshot - exact matches
+                'autres': '67d816374abe8436385a7ad5', // AUTRES (seen in screenshot)
+                'prevoyance': '67d816374abe8436385a7adb', // PREVOYANCE (seen in screenshot)  
+                'materiel cabinet': '67d816374abe8436385a7add', // MATERIEL CABINET (seen in screenshot)
+                'frais banque': '67d816374abe8436385a7acf', // FRAIS BANQUE (seen in screenshot)
+                'charges sociales': '67d816374abe8436385a7ae1', // CHARGES SOCIALES (seen in screenshot)
+                'assurance': '67d816374abe8436385a7adf', // ASSURANCE (seen in screenshot)
+                'masse salariale': '67d816374abe8436385a7acd', // MASSE SALARIALE (seen in screenshot)
+                
                 // Direct service name mappings
                 'kinésitherapie': '66eb4ec8615c83d533d03887', // KINÉSITHERAPIE (30 Min)
                 'ostéopathie': '66eb4ee0615c83d533d0388a', // OSTÉOPATHIE (Bosquet)
@@ -505,24 +514,20 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 
                 // Common service categories
                 'personal expense': '67d816374abe8436385a7ad5', // PERSONAL EXPENSE
-                'frais banque': '67d816374abe8436385a7acf', // FRAIS BANQUE
                 'loyer cabinet': '67d816374abe8436385a7ad3', // LOYER CABINET
                 'mutuelle': '67d816374abe8436385a7ad7', // MUTUELLE
                 'leasing voiture': '67d816374abe8436385a7ad9', // LEASING VOITURE
-                'assurance': '67d816374abe8436385a7adf', // ASSURANCE
                 'internet': '67d816374abe8436385a7ae5', // INTERNET
                 'logiciel cabinet': '67d816374abe8436385a7add', // LOGICIEL CABINET
-                'charges sociales': '67d816374abe8436385a7ae1', // CHARGES SOCIALES
-                'masse salariale': '67d816374abe8436385a7acd', // MASSE SALARIALE
                 'credit cabinet': '67d816374abe8436385a7ae3', // CREDIT CABINET
                 'urssaf': '67d816374abe8436385a7ae7', // URSSAF/CHARGES SOCIALES
                 'mutuelle salarié': '67d816374abe8436385a7ae9', // MUTUELLE SALARIÉ
-                'prevoyance': '67d816374abe8436385a7adb', // PREVOYANCE
                 
-                // Default mappings
-                'other': '67d816374abe8436385a7ad5', // PERSONAL EXPENSE
-                'others': '67d816374abe8436385a7ad5', // PERSONAL EXPENSE
-                'unknown': '67d816374abe8436385a7ad5' // PERSONAL EXPENSE
+                // Default mappings - map everything to AUTRES if not found
+                'other': '67d816374abe8436385a7ad5', // AUTRES
+                'others': '67d816374abe8436385a7ad5', // AUTRES
+                'unknown': '67d816374abe8436385a7ad5', // AUTRES
+                'default': '67d816374abe8436385a7ad5' // AUTRES
             };
             
             // Direct match
@@ -560,8 +565,9 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
             try {
                 // Extract fields from the new PDF extractor format
                 const date = transaction.date ? new Date(transaction.date) : new Date();
-                const cost = parseFloat(transaction.cost) || 0;
-                const taxes = parseFloat(transaction.taxes) || 0;
+                // Handle European decimal format properly (convert comma to dot before parsing)
+                const cost = parseAmount(transaction.cost) || 0;
+                const taxes = parseAmount(transaction.taxes) || 0;
                 const clientName = transaction.clientName || 'Unknown Client';
                 const serviceName = transaction.serviceName || 'Other';
                 const typeOfTransaction = transaction.typeOfTransaction || 'cost';

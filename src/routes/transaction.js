@@ -484,66 +484,59 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
         };
 
         // Function to map serviceName to GoGain service ID
-        const mapServiceNameToId = (serviceName) => {
-            if (!serviceName) return '67d816374abe8436385a7ad5'; // Default to PERSONAL EXPENSE
+        const mapServiceNameToId = async (serviceName) => {
+            if (!serviceName) return null; // Let GoGain find a default service
             
             const serviceNameLower = serviceName.toLowerCase().trim();
             
-            // Create a mapping from service names to IDs based on screenshot service names
-            const serviceNameMapping = {
-                // Services from screenshot - exact matches
-                'autres': '67d816374abe8436385a7ad5', // AUTRES (seen in screenshot)
-                'prevoyance': '67d816374abe8436385a7adb', // PREVOYANCE (seen in screenshot)  
-                'materiel cabinet': '67d816374abe8436385a7add', // MATERIEL CABINET (seen in screenshot)
-                'frais banque': '67d816374abe8436385a7acf', // FRAIS BANQUE (seen in screenshot)
-                'charges sociales': '67d816374abe8436385a7ae1', // CHARGES SOCIALES (seen in screenshot)
-                'assurance': '67d816374abe8436385a7adf', // ASSURANCE (seen in screenshot)
-                'masse salariale': '67d816374abe8436385a7acd', // MASSE SALARIALE (seen in screenshot)
+            // Try to find the service by name in the database
+            try {
+                const Service = require('../models/service');
                 
-                // Direct service name mappings
-                'kinésitherapie': '66eb4ec8615c83d533d03887', // KINÉSITHERAPIE (30 Min)
-                'ostéopathie': '66eb4ee0615c83d533d0388a', // OSTÉOPATHIE (Bosquet)
-                'coaching': '67447edcb56b5793c0cda6db', // COACHING (45Min)
-                'hyatt coaching': '66eb4f14615c83d533d03892', // HYATT COACHING
-                'app': '67447fc9b56b5793c0cda791', // APP (TO C)
-                'gain one': '66eb4f0a615c83d533d03890', // GAIN ONE (3 months)
-                'app start': '66eb4f1b615c83d533d03894', // APP START (TO B)
-                'app boost': '66eb4f20615c83d533d03896', // APP BOOST ( TO B)
-                'rétrocession': '674c7163b56b5793c0cdb733', // RÉTROCESSION
-                'gain performance': '67447f0db56b5793c0cda70f', // GAIN PERFORMANCE (3 mois)
+                // First try exact match
+                let service = await Service.findOne({ 
+                    name: { $regex: new RegExp(`^${serviceName}$`, 'i') } 
+                });
                 
-                // Common service categories
-                'personal expense': '67d816374abe8436385a7ad5', // PERSONAL EXPENSE
-                'loyer cabinet': '67d816374abe8436385a7ad3', // LOYER CABINET
-                'mutuelle': '67d816374abe8436385a7ad7', // MUTUELLE
-                'leasing voiture': '67d816374abe8436385a7ad9', // LEASING VOITURE
-                'internet': '67d816374abe8436385a7ae5', // INTERNET
-                'logiciel cabinet': '67d816374abe8436385a7add', // LOGICIEL CABINET
-                'credit cabinet': '67d816374abe8436385a7ae3', // CREDIT CABINET
-                'urssaf': '67d816374abe8436385a7ae7', // URSSAF/CHARGES SOCIALES
-                'mutuelle salarié': '67d816374abe8436385a7ae9', // MUTUELLE SALARIÉ
-                
-                // Default mappings - map everything to AUTRES if not found
-                'other': '67d816374abe8436385a7ad5', // AUTRES
-                'others': '67d816374abe8436385a7ad5', // AUTRES
-                'unknown': '67d816374abe8436385a7ad5', // AUTRES
-                'default': '67d816374abe8436385a7ad5' // AUTRES
-            };
-            
-            // Direct match
-            if (serviceNameMapping[serviceNameLower]) {
-                return serviceNameMapping[serviceNameLower];
-            }
-            
-            // Partial match - find if serviceName contains any of our mapped keywords
-            for (const [keyword, serviceId] of Object.entries(serviceNameMapping)) {
-                if (serviceNameLower.includes(keyword) || keyword.includes(serviceNameLower)) {
-                    return serviceId;
+                if (service) {
+                    console.log(`Found exact service match: ${serviceName} -> ${service._id}`);
+                    return service._id.toString();
                 }
+                
+                // Try partial match for common variations
+                const commonMappings = {
+                    'autres': ['autres', 'other', 'divers'],
+                    'prevoyance': ['prevoyance', 'prévoyance', 'disability'],
+                    'materiel': ['materiel', 'matériel', 'material', 'cabinet'],
+                    'frais': ['frais', 'fees', 'bank', 'banque'],
+                    'charges': ['charges', 'social', 'sociales'],
+                    'assurance': ['assurance', 'insurance'],
+                    'masse': ['masse', 'salariale', 'salary', 'payroll'],
+                    'kinésitherapie': ['kinésitherapie', 'kinesitherapie', 'physiotherapy'],
+                    'ostéopathie': ['ostéopathie', 'osteopathie', 'osteopathy'],
+                    'coaching': ['coaching', 'training']
+                };
+                
+                // Search for partial matches
+                for (const [key, variations] of Object.entries(commonMappings)) {
+                    if (variations.some(variation => serviceNameLower.includes(variation))) {
+                        service = await Service.findOne({ 
+                            name: { $regex: new RegExp(key, 'i') } 
+                        });
+                        if (service) {
+                            console.log(`Found partial service match: ${serviceName} -> ${service.name} (${service._id})`);
+                            return service._id.toString();
+                        }
+                    }
+                }
+                
+                console.log(`No service match found for: ${serviceName}, will use default`);
+                return null; // Let GoGain assign a default
+                
+            } catch (error) {
+                console.error('Error finding service:', error);
+                return null;
             }
-            
-            // Default fallback
-            return '67d816374abe8436385a7ad5'; // PERSONAL EXPENSE
         };
 
         // Function to determine default center for user
@@ -565,9 +558,9 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
             try {
                 // Extract fields from the new PDF extractor format
                 const date = transaction.date ? new Date(transaction.date) : new Date();
-                // Handle European decimal format properly (convert comma to dot before parsing)
-                const cost = parseAmount(transaction.cost) || 0;
-                const taxes = parseAmount(transaction.taxes) || 0;
+                // Handle amount format properly - ensure XXX,XX format
+                const cost = parseFloat(transaction.cost) || 0;
+                const taxes = parseFloat(transaction.taxes) || 0;
                 const clientName = transaction.clientName || 'Unknown Client';
                 const serviceName = transaction.serviceName || 'Other';
                 const typeOfTransaction = transaction.typeOfTransaction || 'cost';
@@ -588,7 +581,7 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 });
 
                 // Map serviceName to service ID
-                const serviceId = mapServiceNameToId(serviceName);
+                const serviceId = await mapServiceNameToId(serviceName);
                 
                 // Handle client creation from clientName
                 const clientId = await handleClientCreation(clientName);
@@ -617,7 +610,10 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                     serviceName,
                     mappedService: serviceId,
                     cost,
-                    typeOfTransaction
+                    taxes,
+                    typeOfTransaction,
+                    rawCostReceived: transaction.cost,
+                    parsedCost: cost
                 });
 
                 return processedTransaction;

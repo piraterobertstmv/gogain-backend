@@ -527,34 +527,32 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 // Handle client creation (clientName becomes client)
                 const clientId = await handleClientCreation(clientName);
                 
-                // Get default center for user
+                // Get user's first assigned center (user who extracts PDF determines center)
                 const centerId = getDefaultCenterForUser(req.user);
+                
+                // For PDF imports, amount with taxes = amount without taxes (no tax calculation)
+                const absoluteAmount = Math.abs(amount);
                 
                 // Determine transaction type based on amount (negative = cost, positive = revenue)
                 const typeOfTransaction = amount < 0 ? 'cost' : 'revenue';
-                const absoluteAmount = Math.abs(amount);
-                
-                // Calculate taxes (assume 20% VAT if not specified)
-                const taxes = transaction.taxes ? parseAmount(transaction.taxes) : (absoluteAmount * 0.2);
-                const costWithoutTaxes = absoluteAmount - taxes;
 
-                // Create transaction object
+                // Create transaction object matching existing GoGain format
                 const processedTransaction = {
                     index: startIndex + idx + 1,
                     date: date,
                     center: centerId,
-                    centerName: 'PDF Import Center',
+                    centerName: undefined, // Let it be populated by center lookup
                     client: clientId,
-                    clientName: clientName,
-                    cost: costWithoutTaxes,
-                    worker: req.user._id,
-                    taxes: taxes,
+                    clientName: undefined, // Let it be populated by client lookup
+                    cost: absoluteAmount, // Amount with taxes = amount without taxes
+                    worker: req.user._id, // Worker = user who extracted PDF
+                    taxes: 0, // Always 0% taxes for PDF imports
                     typeOfTransaction: typeOfTransaction,
                     typeOfMovement: 'bank transfer',
                     frequency: 'ordinary',
                     typeOfClient: 'client',
                     service: serviceId,
-                    serviceName: `PDF: ${category}`
+                    serviceName: undefined // Let it be populated by service lookup
                 };
 
                 console.log(`Processed transaction ${idx + 1}:`, {

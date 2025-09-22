@@ -581,7 +581,13 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 });
 
                 // Map serviceName to service ID
-                const serviceId = await mapServiceNameToId(serviceName);
+                let serviceId = await mapServiceNameToId(serviceName);
+                
+                // If no service mapping found, use a default cost ID (FRAIS BANQUE as fallback)
+                if (!serviceId) {
+                    serviceId = '673a9f8255ac0d45f4788318'; // FRAIS BANQUE (Bank Fees)
+                    console.log(`No service mapping found for '${serviceName}', using default: FRAIS BANQUE`);
+                }
                 
                 // Handle client creation from clientName
                 const clientId = await handleClientCreation(clientName);

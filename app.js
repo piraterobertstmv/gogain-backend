@@ -6,6 +6,7 @@ const centerRoutes = require('./src/routes/center');
 const clientRoutes = require('./src/routes/client');
 const transactionRoutes = require('./src/routes/transaction');
 const costsRoutes = require('./src/routes/costs');
+const costTransactionRoutes = require('./src/routes/costTransaction');
 
 const cors = require('cors');
 const express = require('express');
@@ -46,6 +47,7 @@ app.use(centerRoutes);
 app.use(clientRoutes);
 app.use(transactionRoutes);
 app.use(costsRoutes);
+app.use(costTransactionRoutes);
 
 // Basic route to confirm the server is running
 app.get('/', (req, res) => {

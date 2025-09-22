@@ -1,5 +1,6 @@
 const express = require('express');
 const Transaction = require('../models/transaction');
+const CostTransaction = require('../models/costTransaction');
 const Client = require('../models/client');
 const mongoose = require('mongoose');
 const authentification = require('../middlewares/authentification');
@@ -640,7 +641,8 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
         }
 
         // Save transactions to database using existing batch logic
-        const savedTransactions = await Transaction.insertMany(validTransactions);
+        // Save to CostTransaction collection instead of Transaction
+        const savedTransactions = await CostTransaction.insertMany(validTransactions);
 
         console.log(`Successfully imported ${savedTransactions.length} transactions from PDF`);
 

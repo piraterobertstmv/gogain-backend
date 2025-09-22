@@ -4,7 +4,7 @@ const authentification = require('../middlewares/authentification');
 const router = new express.Router();
 
 // Get all cost transactions
-router.get('/costs', async (req, res, next) => {
+router.get('/cost-transactions', async (req, res, next) => {
     try {
         const costs = await CostTransaction.find({});
         res.status(200).send({ costs });
@@ -14,7 +14,7 @@ router.get('/costs', async (req, res, next) => {
 });
 
 // Create a new cost transaction
-router.post('/costs', authentification, async (req, res, next) => {
+router.post('/cost-transactions', authentification, async (req, res, next) => {
     try {
         const costTransaction = new CostTransaction(req.body);
         await costTransaction.save();
@@ -25,7 +25,7 @@ router.post('/costs', authentification, async (req, res, next) => {
 });
 
 // Get cost transaction by ID
-router.get('/costs/:id', async (req, res, next) => {
+router.get('/cost-transactions/:id', async (req, res, next) => {
     const costId = req.params.id;
     try {
         const costTransaction = await CostTransaction.findById(costId);
@@ -39,7 +39,7 @@ router.get('/costs/:id', async (req, res, next) => {
 });
 
 // Update cost transaction by ID
-router.patch('/costs/:id', authentification, async (req, res, next) => {
+router.patch('/cost-transactions/:id', authentification, async (req, res, next) => {
     try {
         const costTransaction = await CostTransaction.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         if (!costTransaction) {
@@ -52,7 +52,7 @@ router.patch('/costs/:id', authentification, async (req, res, next) => {
 });
 
 // Delete cost transaction by ID
-router.delete('/costs/:id', authentification, async (req, res, next) => {
+router.delete('/cost-transactions/:id', authentification, async (req, res, next) => {
     try {
         const costTransaction = await CostTransaction.findByIdAndDelete(req.params.id);
         if (!costTransaction) {

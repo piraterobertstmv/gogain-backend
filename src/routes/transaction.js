@@ -562,6 +562,52 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
             return user.centers[0]; // Use user's first assigned center
         };
 
+        // Function to map PDF movement types to GoGain movement types
+        const mapMovementType = (pdfMovementType) => {
+            if (!pdfMovementType) return 'card';
+            
+            const movementLower = pdfMovementType.toLowerCase().trim();
+            
+            // Direct mappings to GoGain movement types
+            const movementMappings = {
+                'cash': 'cash',
+                'bank transfer': 'bank transfer',
+                'transfer': 'bank transfer',
+                'bank_transfer': 'bank transfer',
+                'wire': 'bank transfer',
+                'wire transfer': 'bank transfer',
+                'card': 'card',
+                'card payment': 'card',
+                'credit card': 'card',
+                'debit card': 'card',
+                'bank check': 'bank check',
+                'check': 'bank check',
+                'cheque': 'bank check',
+                'direct_debit': 'bank transfer',
+                'direct debit': 'bank transfer',
+                'electronic': 'bank transfer',
+                'other': 'card' // Default fallback
+            };
+            
+            // Try exact match first
+            if (movementMappings[movementLower]) {
+                console.log(`Movement type mapped: ${pdfMovementType} -> ${movementMappings[movementLower]}`);
+                return movementMappings[movementLower];
+            }
+            
+            // Try partial matches
+            for (const [key, value] of Object.entries(movementMappings)) {
+                if (movementLower.includes(key)) {
+                    console.log(`Movement type partial match: ${pdfMovementType} -> ${value}`);
+                    return value;
+                }
+            }
+            
+            // Default fallback
+            console.log(`Unknown movement type: ${pdfMovementType}, defaulting to 'card'`);
+            return 'card';
+        };
+
         // Get the last transaction index for proper indexing
         const lastTransaction = await Transaction.findOne({})
             .sort({ index: -1 })
@@ -579,7 +625,7 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 const clientName = transaction.clientName || 'Unknown Client';
                 const serviceName = transaction.serviceName || 'Other';
                 const typeOfTransaction = transaction.typeOfTransaction || 'cost';
-                const typeOfMovement = transaction.typeOfMovement || 'card payment';
+                const typeOfMovement = mapMovementType(transaction.typeOfMovement);
                 const frequency = transaction.frequency || 'ordinary';
                 const typeOfClient = transaction.typeOfClient || 'client';
 

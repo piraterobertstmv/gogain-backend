@@ -564,47 +564,69 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
 
         // Function to map PDF movement types to GoGain movement types
         const mapMovementType = (pdfMovementType) => {
-            if (!pdfMovementType) return 'card';
+            console.log(`mapMovementType called with:`, pdfMovementType, `(type: ${typeof pdfMovementType})`);
             
-            const movementLower = pdfMovementType.toLowerCase().trim();
+            if (!pdfMovementType || pdfMovementType === '' || pdfMovementType === null || pdfMovementType === undefined) {
+                console.log(`Empty movement type, defaulting to 'card'`);
+                return 'card';
+            }
             
-            // Direct mappings to GoGain movement types
+            const movementLower = pdfMovementType.toString().toLowerCase().trim();
+            console.log(`Movement type normalized:`, movementLower);
+            
+            // Direct mappings to GoGain movement types - expanded list
             const movementMappings = {
+                // Cash variations
                 'cash': 'cash',
+                'especes': 'cash',
+                'liquide': 'cash',
+                
+                // Bank transfer variations
                 'bank transfer': 'bank transfer',
                 'transfer': 'bank transfer',
                 'bank_transfer': 'bank transfer',
                 'wire': 'bank transfer',
                 'wire transfer': 'bank transfer',
+                'virement': 'bank transfer',
+                'electronic': 'bank transfer',
+                'direct_debit': 'bank transfer',
+                'direct debit': 'bank transfer',
+                'prelevement': 'bank transfer',
+                
+                // Card variations
                 'card': 'card',
                 'card payment': 'card',
                 'credit card': 'card',
                 'debit card': 'card',
+                'carte': 'card',
+                'cb': 'card',
+                
+                // Check variations
                 'bank check': 'bank check',
                 'check': 'bank check',
                 'cheque': 'bank check',
-                'direct_debit': 'bank transfer',
-                'direct debit': 'bank transfer',
-                'electronic': 'bank transfer',
-                'other': 'card' // Default fallback
+                
+                // Common fallbacks
+                'other': 'card',
+                'unknown': 'card'
             };
             
             // Try exact match first
             if (movementMappings[movementLower]) {
-                console.log(`Movement type mapped: ${pdfMovementType} -> ${movementMappings[movementLower]}`);
+                console.log(`Movement type exact match: ${pdfMovementType} -> ${movementMappings[movementLower]}`);
                 return movementMappings[movementLower];
             }
             
-            // Try partial matches
+            // Try partial matches - check if movement type contains any of our keywords
             for (const [key, value] of Object.entries(movementMappings)) {
-                if (movementLower.includes(key)) {
-                    console.log(`Movement type partial match: ${pdfMovementType} -> ${value}`);
+                if (movementLower.includes(key) || key.includes(movementLower)) {
+                    console.log(`Movement type partial match: ${pdfMovementType} (${movementLower}) contains '${key}' -> ${value}`);
                     return value;
                 }
             }
             
-            // Default fallback
-            console.log(`Unknown movement type: ${pdfMovementType}, defaulting to 'card'`);
+            // Default fallback with detailed logging
+            console.log(`⚠️ Unknown movement type: '${pdfMovementType}' (normalized: '${movementLower}'), defaulting to 'card'`);
             return 'card';
         };
 
@@ -625,7 +647,9 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 const clientName = transaction.clientName || 'Unknown Client';
                 const serviceName = transaction.serviceName || 'Other';
                 const typeOfTransaction = transaction.typeOfTransaction || 'cost';
+                console.log(`PDF transaction ${idx + 1} - Raw typeOfMovement from PDF:`, transaction.typeOfMovement);
                 const typeOfMovement = mapMovementType(transaction.typeOfMovement);
+                console.log(`PDF transaction ${idx + 1} - Mapped typeOfMovement:`, typeOfMovement);
                 const frequency = transaction.frequency || 'ordinary';
                 const typeOfClient = transaction.typeOfClient || 'client';
 

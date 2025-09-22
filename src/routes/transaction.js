@@ -289,11 +289,18 @@ function parseAmount(amountString) {
         // Handle European format with comma as decimal separator
         let cleanAmount = amountString.toString().trim();
         
-        // Remove currency symbols and spaces
+        // Remove currency symbols
         cleanAmount = cleanAmount.replace(/[€$£¥₹]/g, '').trim();
         
-        // Convert comma to dot for decimal separator
-        cleanAmount = cleanAmount.replace(',', '.');
+        // Handle European format: spaces as thousands separators, comma as decimal
+        // Example: "2 000,50" should become "2000.50"
+        if (cleanAmount.includes(',') && cleanAmount.includes(' ')) {
+            // Remove spaces (thousands separators) and convert comma to dot
+            cleanAmount = cleanAmount.replace(/\s/g, '').replace(',', '.');
+        } else if (cleanAmount.includes(',')) {
+            // Just convert comma to dot for decimal separator
+            cleanAmount = cleanAmount.replace(',', '.');
+        }
         
         // Remove any remaining non-numeric characters except dot and minus
         cleanAmount = cleanAmount.replace(/[^0-9.-]/g, '');
@@ -560,8 +567,8 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 // Extract fields from the new PDF extractor format
                 const date = transaction.date ? new Date(transaction.date) : new Date();
                 // Handle amount format properly - ensure XXX,XX format
-                const cost = parseFloat(transaction.cost) || 0;
-                const taxes = parseFloat(transaction.taxes) || 0;
+                const cost = parseAmount(transaction.cost) || 0;
+                const taxes = parseAmount(transaction.taxes) || 0;
                 const clientName = transaction.clientName || 'Unknown Client';
                 const serviceName = transaction.serviceName || 'Other';
                 const typeOfTransaction = transaction.typeOfTransaction || 'cost';

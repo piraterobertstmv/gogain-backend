@@ -492,58 +492,65 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
         };
 
         // Function to map serviceName to GoGain service ID
-        const mapServiceNameToId = async (serviceName) => {
-            if (!serviceName) return null; // Let GoGain find a default service
+        const mapCostNameToId = async (costName) => {
+            if (!costName) return null;
             
-            const serviceNameLower = serviceName.toLowerCase().trim();
+            const costNameLower = costName.toLowerCase().trim();
             
-            // Try to find the service by name in the database
+            // Try to find the cost by name in the database
             try {
-                const Service = require('../models/service');
+                const Cost = require('../models/costs');
                 
                 // First try exact match
-                let service = await Service.findOne({ 
-                    name: { $regex: new RegExp(`^${serviceName}$`, 'i') } 
+                let cost = await Cost.findOne({ 
+                    name: { $regex: new RegExp(`^${costName}$`, 'i') } 
                 });
                 
-                if (service) {
-                    console.log(`Found exact service match: ${serviceName} -> ${service._id}`);
-                    return service._id.toString();
+                if (cost) {
+                    console.log(`Found exact cost match: ${costName} -> ${cost._id}`);
+                    return cost._id.toString();
                 }
                 
-                // Try partial match for common variations
-                const commonMappings = {
-                    'autres': ['autres', 'other', 'divers'],
-                    'prevoyance': ['prevoyance', 'prévoyance', 'disability'],
-                    'materiel': ['materiel', 'matériel', 'material', 'cabinet'],
-                    'frais': ['frais', 'fees', 'bank', 'banque'],
-                    'charges': ['charges', 'social', 'sociales'],
+                // Try partial match for cost categories from GoGain
+                const costMappings = {
                     'assurance': ['assurance', 'insurance'],
-                    'masse': ['masse', 'salariale', 'salary', 'payroll'],
-                    'kinésitherapie': ['kinésitherapie', 'kinesitherapie', 'physiotherapy'],
-                    'ostéopathie': ['ostéopathie', 'osteopathie', 'osteopathy'],
-                    'coaching': ['coaching', 'training']
+                    'charges sociales': ['charges', 'social', 'sociales'],
+                    'credit cabinet': ['credit', 'cabinet', 'crédit'],
+                    'frais banque': ['frais', 'banque', 'bank', 'fees'],
+                    'gym': ['gym', 'fitness'],
+                    'internet': ['internet', 'web'],
+                    'leasing moto': ['leasing', 'moto', 'motorcycle'],
+                    'leasing voiture': ['leasing', 'voiture', 'car', 'vehicle'],
+                    'logiciel cabinet': ['logiciel', 'cabinet', 'software'],
+                    'loyer cabinet': ['loyer', 'cabinet', 'rent'],
+                    'masse salariale': ['masse', 'salariale', 'salary', 'payroll'],
+                    'materiel cabinet': ['materiel', 'matériel', 'cabinet', 'material'],
+                    'mutuelle': ['mutuelle', 'mutual'],
+                    'mutuelle salarié': ['mutuelle', 'salarié', 'salarie', 'employee'],
+                    'prevoyance': ['prevoyance', 'prévoyance'],
+                    'tpe banque': ['tpe', 'banque', 'terminal'],
+                    'urssaf/charges sociales': ['urssaf', 'charges', 'sociales']
                 };
                 
                 // Search for partial matches
-                for (const [key, variations] of Object.entries(commonMappings)) {
-                    if (variations.some(variation => serviceNameLower.includes(variation))) {
-                        service = await Service.findOne({ 
+                for (const [key, variations] of Object.entries(costMappings)) {
+                    if (variations.some(variation => costNameLower.includes(variation))) {
+                        cost = await Cost.findOne({ 
                             name: { $regex: new RegExp(key, 'i') } 
                         });
-                        if (service) {
-                            console.log(`Found partial service match: ${serviceName} -> ${service.name} (${service._id})`);
-                            return service._id.toString();
+                        if (cost) {
+                            console.log(`Found partial cost match: ${costName} -> ${cost.name} (${cost._id})`);
+                            return cost._id.toString();
                         }
                     }
                 }
                 
-                console.log(`No service match found for: ${serviceName}, will use null`);
-                return null; // Return null - PDF extractor should provide correct service IDs
+                console.log(`No cost match found for: ${costName}, will use null`);
+                return null;
                 
             } catch (error) {
-                console.error('Error finding service:', error);
-                return null; // Return null - PDF extractor should provide correct service IDs
+                console.error('Error finding cost:', error);
+                return null;
             }
         };
 
@@ -589,7 +596,7 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 });
 
                 // Map serviceName to service ID
-                let serviceId = await mapServiceNameToId(serviceName);
+                let serviceId = await mapCostNameToId(serviceName);
                 
                 // If no service mapping found, use a default cost ID (FRAIS BANQUE as fallback)
                 if (!serviceId) {

@@ -556,10 +556,33 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
 
         // Function to determine default center for user
         const getDefaultCenterForUser = (user) => {
+            // Check for center from header (sent by PDF extractor)
+            const centerFromHeader = req.headers['x-selected-center'];
+            if (centerFromHeader) {
+                // Validate user has access to this center
+                if (user.isAdmin || user.centers?.includes(centerFromHeader)) {
+                    console.log(`Using selected center from header: ${centerFromHeader}`);
+                    return centerFromHeader;
+                } else {
+                    console.warn(`User ${user._id} tried to use unauthorized center ${centerFromHeader}`);
+                }
+            }
+            
+            // Check for center from body (backup)
+            const centerFromBody = req.body.selectedCenter;
+            if (centerFromBody && (user.isAdmin || user.centers?.includes(centerFromBody))) {
+                console.log(`Using selected center from body: ${centerFromBody}`);
+                return centerFromBody;
+            }
+            
+            // Fallback to existing logic
             if (!user || !user.centers || user.centers.length === 0) {
+                console.log('Using default center: BOSQUET');
                 return '66eb4e85615c83d533d03876'; // Default to BOSQUET
             }
-            return user.centers[0]; // Use user's first assigned center
+            
+            console.log(`Using user's first center: ${user.centers[0]}`);
+            return user.centers[0];
         };
 
         // Function to map PDF movement types to GoGain movement types

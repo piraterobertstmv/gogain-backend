@@ -7,23 +7,45 @@ const clientRoutes = require('./src/routes/client');
 const transactionRoutes = require('./src/routes/transaction');
 const costsRoutes = require('./src/routes/costs');
 const costTransactionRoutes = require('./src/routes/costTransaction');
+const reportRoutes = require('./src/routes/reports');
 
 const cors = require('cors');
+const compression = require('compression');
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Configure CORS
+if (!process.env.JWT_SECRET) {
+  console.error('JWT_SECRET is required. Set the JWT_SECRET environment variable.');
+  process.exit(1);
+}
+
+// Configure CORS — explicit origins only (no wildcard: any *.vercel.app site could call the API).
+// Override with CORS_ORIGINS="https://a.com,https://b.com" if the frontend lives elsewhere.
+const defaultOrigins = process.env.NODE_ENV === 'production'
+  ? [
+      'https://gogain-frontend.vercel.app',
+      'https://gogain.co',
+      'https://pdf-expense-tracker.vercel.app' // external PDF extractor that posts imports
+    ]
+  // Development: any localhost / 127.0.0.1 port (Vite moves to 5174, 5175… when 5173 is busy)
+  : [/^http:\/\/(localhost|127\.0\.0\.1):\d+$/];
+
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
+  : defaultOrigins;
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://gogain-frontend.vercel.app', 'https://gogain.co', /\.vercel\.app$/] 
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'],
+  origin: allowedOrigins,
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
   optionsSuccessStatus: 204,
   maxAge: 86400 // 24 hours
 };
 app.use(cors(corsOptions));
+
+// gzip responses: the transaction list is ~2 MB of JSON and compresses ~8–10x
+app.use(compression());
 
 // Security headers
 app.use((req, res, next) => {
@@ -48,6 +70,7 @@ app.use(clientRoutes);
 app.use(transactionRoutes);
 app.use(costsRoutes);
 app.use(costTransactionRoutes);
+app.use(reportRoutes);
 
 // Basic route to confirm the server is running
 app.get('/', (req, res) => {

@@ -1,9 +1,10 @@
 const express = require('express');
 const Client = require('../models/client');
+const authentification = require('../middlewares/authentification');
 const router = new express.Router();
 
 
-router.post('/client', async (req, res, next) => {
+router.post('/client', authentification, async (req, res, next) => {
     const client = new Client(req.body);
 
     try {
@@ -14,12 +15,9 @@ router.post('/client', async (req, res, next) => {
     }
 });
 
-router.get('/client', async (req, res, next) => {
+router.get('/client', authentification, async (req, res, next) => {
     try {
-        console.log('Fetching clients...');
-        const client = await Client.find({});
-        console.log('Found clients:', client.length);
-        console.log('First client (if any):', client[0]);
+        const client = await Client.find({}).lean();
         res.status(200).send({ client });
     } catch(e) {
         console.error('Error fetching clients:', e);
@@ -27,7 +25,7 @@ router.get('/client', async (req, res, next) => {
     }
 });
 
-router.get('/client/:id', async (req, res, next) => {
+router.get('/client/:id', authentification, async (req, res, next) => {
     const clientId = req.params.id;
 
     try {
@@ -38,7 +36,7 @@ router.get('/client/:id', async (req, res, next) => {
     }
 });
 
-router.patch('/client/:id', async (req, res, next) => {
+router.patch('/client/:id', authentification, async (req, res, next) => {
     const clientId = req.params.id;
     const clientModified = req.body;
 
@@ -51,20 +49,11 @@ router.patch('/client/:id', async (req, res, next) => {
     }
 });
 
-router.delete('/client/:id', async (req, res, next) => {
+router.delete('/client/:id', authentification, async (req, res, next) => {
     const clientId = req.params.id;
 
     try {
         const deleteInfos = await Client.deleteOne({ _id: clientId });
-        res.status(201).send({ clientId, deleteInfos });
-    } catch(e) {
-        res.status(400).send(e);
-    }
-});
-
-router.delete('/client', async (req, res, next) => {
-    try {
-        const deleteInfos = await Client.deleteMany();
         res.status(201).send({ clientId, deleteInfos });
     } catch(e) {
         res.status(400).send(e);

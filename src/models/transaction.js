@@ -1,4 +1,3 @@
-const { ServerMonitoringMode } = require('mongodb');
 const mongoose = require('mongoose');
 const validator = require('validator');
 
@@ -70,6 +69,11 @@ transactionSchema.methods.toJSON = function() {
     
     return transaction;
 }
+
+// Indexes for date-range reports and paged lists (by worker for regular users, by center for filters)
+transactionSchema.index({ date: 1 });
+transactionSchema.index({ worker: 1, date: 1 });
+transactionSchema.index({ center: 1, date: 1 });
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 

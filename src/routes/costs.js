@@ -1,8 +1,9 @@
 const express = require('express');
 const Costs = require('../models/costs');
+const authentification = require('../middlewares/authentification');
 const router = new express.Router();
 
-router.post('/costs', async (req, res, next) => {
+router.post('/costs', authentification, async (req, res, next) => {
     const costs = new Costs(req.body);
 
     try {
@@ -13,7 +14,7 @@ router.post('/costs', async (req, res, next) => {
     }
 });
 
-router.get('/costs', async (req, res, next) => {
+router.get('/costs', authentification, async (req, res, next) => {
     try {
         const costs = await Costs.find({});
         res.status(201).send({ costs });
@@ -22,7 +23,7 @@ router.get('/costs', async (req, res, next) => {
     }
 });
 
-router.get('/costs/:id', async (req, res, next) => {
+router.get('/costs/:id', authentification, async (req, res, next) => {
     const costsId = req.params.id;
 
     try {
@@ -33,7 +34,7 @@ router.get('/costs/:id', async (req, res, next) => {
     }
 });
 
-router.patch('/costs/:id', async (req, res, next) => {
+router.patch('/costs/:id', authentification, async (req, res, next) => {
     const costsId = req.params.id;
     const costsModified = req.body;
 
@@ -46,7 +47,7 @@ router.patch('/costs/:id', async (req, res, next) => {
     }
 });
 
-router.delete('/costs/:id', async (req, res, next) => {
+router.delete('/costs/:id', authentification, async (req, res, next) => {
     const costsId = req.params.id;
 
     try {

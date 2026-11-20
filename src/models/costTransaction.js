@@ -70,6 +70,11 @@ costTransactionSchema.methods.toJSON = function() {
     return costTransaction;
 }
 
+// Indexes for date-range reports and paged lists (by worker for regular users, by center for filters)
+costTransactionSchema.index({ date: 1 });
+costTransactionSchema.index({ worker: 1, date: 1 });
+costTransactionSchema.index({ center: 1, date: 1 });
+
 const CostTransaction = mongoose.model('CostTransaction', costTransactionSchema);
 
 module.exports = CostTransaction;

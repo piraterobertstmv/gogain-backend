@@ -24,7 +24,9 @@ jobs:
       - name: Build
         run: npm run build
         
+      # Pull requests only build; deploying to production happens on push to main.
       - name: Deploy to Render
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
           -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \

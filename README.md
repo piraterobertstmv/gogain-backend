@@ -2,24 +2,16 @@
 
 ## Environment Setup
 
-### Required Environment Variables
+Copy `.env.example` to `.env` for local development. In production, set the variables in the hosting platform (Render). **Never commit real values to the repository.**
 
-Make sure to set the following environment variables in your hosting platform (Render):
+| Variable | Required | Description |
+|---|---|---|
+| `MONGO_URL` | yes | MongoDB connection string |
+| `JWT_SECRET` | yes | Long random string used to sign auth tokens (e.g. `openssl rand -hex 48`) |
+| `NODE_ENV` | no | `production` in production |
+| `CORS_ORIGINS` | no | Comma-separated list of allowed frontend origins (overrides the defaults in `app.js`) |
 
-1. `MONGO_URL`: MongoDB connection string
-   ```
-   mongodb+srv://amoyavalls:IEHQ4ksdLTyMMZed@cluster0.pa3o6zg.mongodb.net/gogain?retryWrites=true&w=majority&appName=Cluster0
-   ```
-
-2. `JWT_SECRET`: Secret key for JWT authentication
-   ```
-   8f45d7a2e4b3c9f6h1j8k5l2m9n4p7q0r3s6t9v2w5x8y1z4a7b0c3d6e9g2
-   ```
-
-3. `NODE_ENV`: Set this to "production" for production environments
-   ```
-   production
-   ```
+The server refuses to start if `MONGO_URL` or `JWT_SECRET` is missing.
 
 ### Setting up on Render
 
@@ -29,18 +21,27 @@ Make sure to set the following environment variables in your hosting platform (R
 4. Click "Save Changes"
 5. Redeploy your service
 
-## Default Admin User
+## Creating the first admin user
 
-An admin user is automatically created if it doesn't exist:
+```
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-strong-password' node create-test-user.js
+```
 
-- Email: admin@gogain.com
-- Password: GogainAdmin123!
+## Authentication
+
+Every endpoint except `POST /users/login`, `GET /` and `GET /ping` requires an `Authorization: Bearer <token>` header.
+
+- User management (`POST /users`, `DELETE /users/:id`, editing other users) is admin-only.
+- Non-admin users can only read and modify their own transactions and cost transactions.
 
 ## API Endpoints
 
 - POST /users/login - Login with email and password
+- POST /users/logout - Invalidate the current token
 - GET /users/me - Get current user with token
-- GET /transaction - Get all transactions
+- GET /transaction - Get transactions
+- GET /cost-transactions - Get cost transactions
 - GET /client - Get all clients
 - GET /center - Get all centers
 - GET /service - Get all services
+- GET /costs - Get all cost categories

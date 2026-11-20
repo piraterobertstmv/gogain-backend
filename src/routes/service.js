@@ -1,9 +1,10 @@
 const express = require('express');
 const Service = require('../models/service');
+const authentification = require('../middlewares/authentification');
 const router = new express.Router();
 
 
-router.post('/service', async (req, res, next) => {
+router.post('/service', authentification, async (req, res, next) => {
     const service = new Service(req.body);
 
     try {
@@ -14,7 +15,7 @@ router.post('/service', async (req, res, next) => {
     }
 });
 
-router.get('/service', async (req, res, next) => {
+router.get('/service', authentification, async (req, res, next) => {
     try {
         const service = await Service.find({});
         res.status(201).send({ service });
@@ -23,7 +24,7 @@ router.get('/service', async (req, res, next) => {
     }
 });
 
-router.get('/service/:id', async (req, res, next) => {
+router.get('/service/:id', authentification, async (req, res, next) => {
     const serviceId = req.params.id;
 
     try {
@@ -34,7 +35,7 @@ router.get('/service/:id', async (req, res, next) => {
     }
 });
 
-router.patch('/service/:id', async (req, res, next) => {
+router.patch('/service/:id', authentification, async (req, res, next) => {
     const serviceId = req.params.id;
     const serviceModified = req.body;
 
@@ -47,7 +48,7 @@ router.patch('/service/:id', async (req, res, next) => {
     }
 });
 
-router.delete('/service/:id', async (req, res, next) => {
+router.delete('/service/:id', authentification, async (req, res, next) => {
     const serviceId = req.params.id;
 
     try {

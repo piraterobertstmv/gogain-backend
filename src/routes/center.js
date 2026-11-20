@@ -1,8 +1,9 @@
 const express = require('express');
 const Center = require('../models/center');
+const authentification = require('../middlewares/authentification');
 const router = new express.Router();
 
-router.post('/center', async (req, res, next) => {
+router.post('/center', authentification, async (req, res, next) => {
     const center = new Center(req.body);
 
     try {
@@ -13,7 +14,7 @@ router.post('/center', async (req, res, next) => {
     }
 });
 
-router.get('/center', async (req, res, next) => {
+router.get('/center', authentification, async (req, res, next) => {
     try {
         const center = await Center.find({});
         res.status(201).send({ center });
@@ -22,7 +23,7 @@ router.get('/center', async (req, res, next) => {
     }
 });
 
-router.get('/center/:id', async (req, res, next) => {
+router.get('/center/:id', authentification, async (req, res, next) => {
     const centerId = req.params.id;
 
     try {
@@ -33,7 +34,7 @@ router.get('/center/:id', async (req, res, next) => {
     }
 });
 
-router.patch('/center/:id', async (req, res, next) => {
+router.patch('/center/:id', authentification, async (req, res, next) => {
     const centerId = req.params.id;
     const centerModified = req.body;
 
@@ -46,7 +47,7 @@ router.patch('/center/:id', async (req, res, next) => {
     }
 });
 
-router.delete('/center/:id', async (req, res, next) => {
+router.delete('/center/:id', authentification, async (req, res, next) => {
     const centerId = req.params.id;
 
     try {

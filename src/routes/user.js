@@ -1,145 +1,120 @@
 const express = require('express');
 const User = require('../models/user');
 const authentification = require('../middlewares/authentification');
+const { requireAdmin } = require('../middlewares/authentification');
 const router = new express.Router();
-const bcrypt = require('bcryptjs');
 
-router.post('/users', async (req, res, next) => {
-    const user = new User(req.body);
+// Fields an admin may set on a user. Anything else in the body is ignored
+// (prevents writing authTokens, _id, etc. through the API).
+const ADMIN_EDITABLE_FIELDS = ['email', 'password', 'firstName', 'lastName', 'isAdmin', 'centers', 'services', 'percentage'];
+// Fields a regular user may change on their own account.
+const SELF_EDITABLE_FIELDS = ['password'];
 
+function pick(source, fields) {
+    const result = {};
+    fields.forEach(field => {
+        if (source[field] !== undefined) result[field] = source[field];
+    });
+    return result;
+}
+
+function sendUserError(res, e, fallbackMessage) {
+    if (e.name === 'ValidationError') {
+        const errors = {};
+        for (const field in e.errors) {
+            errors[field] = e.errors[field].message;
+        }
+        return res.status(400).send({ message: 'Validation failed', errors });
+    }
+    if (e.code === 11000) {
+        return res.status(400).send({ message: 'Email is already in use' });
+    }
+    if (e.name === 'CastError') {
+        return res.status(400).send({ message: 'Invalid user id' });
+    }
+    console.error(fallbackMessage, e);
+    res.status(500).send({ message: fallbackMessage });
+}
+
+// Create a user (admin only)
+router.post('/users', authentification, requireAdmin, async (req, res) => {
     try {
-        const authToken = await user.generateAuthTokenAndSaveUser();
-        res.status(201).send({ user, authToken });
+        const user = new User(pick(req.body, ADMIN_EDITABLE_FIELDS));
+        if (!user.password) {
+            return res.status(400).send({ message: 'Validation failed', errors: { password: 'Password is required' } });
+        }
+        await user.save();
+        res.status(201).send({ user });
     } catch(e) {
-        console.error('Error creating user:', e);
-        
-        // Handle validation errors with more detailed messages
-        if (e.name === 'ValidationError') {
-            const errors = {};
-            // Extract validation error messages
-            for (const field in e.errors) {
-                errors[field] = e.errors[field].message;
-            }
-            return res.status(400).send({ 
-                message: 'Validation failed',
-                errors 
-            });
-        }
-        
-        // Handle duplicate key (email) error
-        if (e.code === 11000) {
-            return res.status(400).send({ 
-                message: 'Email is already in use' 
-            });
-        }
-        
-        // Generic error handling
-        res.status(400).send({ 
-            message: e.message || 'Error creating user'
-        });
+        sendUserError(res, e, 'Error creating user');
     }
 });
 
-router.get('/users', async (req, res, next) => {
+// List users (any authenticated user — needed to display worker names).
+// toJSON strips password and authTokens.
+router.get('/users', authentification, async (req, res) => {
     try {
         const users = await User.find({});
-        res.status(201).send({ users });
+        res.status(200).send({ users });
     } catch(e) {
-        res.status(400).send(e);
+        sendUserError(res, e, 'Error fetching users');
     }
 });
 
-router.patch('/users/:id', async (req, res, next) => {
+// Update a user. Admins can edit anyone; regular users can only change their own password.
+router.patch('/users/:id', authentification, async (req, res) => {
     const userId = req.params.id;
-    const userModified = req.body;
+    const isSelf = req.user._id.toString() === userId;
+    const isAdmin = req.user.isAdmin === true;
 
-    if (userModified.password) {
-        userModified.password = await bcrypt.hash(userModified.password, 8);
+    if (!isAdmin && !isSelf) {
+        return res.status(403).send({ message: 'You can only modify your own account' });
     }
 
     try {
-        await User.updateOne({ _id: userId }, { $set: userModified });
-        const updatedUser = await User.find({ _id: userId });
-        res.status(201).send({ userId, updatedUser });
+        const user = isSelf ? req.user : await User.findById(userId);
+        if (!user) return res.status(404).send({ message: 'User not found' });
+
+        const updates = pick(req.body, isAdmin ? ADMIN_EDITABLE_FIELDS : SELF_EDITABLE_FIELDS);
+        if (updates.password === '') delete updates.password;
+
+        Object.assign(user, updates);
+        await user.save(); // runs validators and the password-hashing hook
+
+        res.status(200).send({ userId, updatedUser: [user] });
     } catch(e) {
-        res.status(400).send(e);
+        sendUserError(res, e, 'Error updating user');
     }
 });
 
-router.delete('/users/:id', async (req, res, next) => {
+// Delete a user (admin only, not yourself)
+router.delete('/users/:id', authentification, requireAdmin, async (req, res) => {
     const userId = req.params.id;
+
+    if (req.user._id.toString() === userId) {
+        return res.status(400).send({ message: 'You cannot delete your own account' });
+    }
 
     try {
         const deleteInfos = await User.deleteOne({ _id: userId });
-        res.status(201).send({ userId, deleteInfos });
+        res.status(200).send({ userId, deleteInfos });
     } catch(e) {
-        res.status(400).send(e);
+        sendUserError(res, e, 'Error deleting user');
     }
 });
 
-//router.get('/users', authentification, async (req, res, next) => {
-//    try {
-//        const users = await User.find({  });
-//        res.send(users);
-//    } catch(e) {
-//        res.status(500).send(e);
-//    }
-//})
-//
-//router.get('/users/:id', async (req, res, next) => {
-//    const userId = req.params.id;
-//
-//    try {
-//        const user = await User.findById(userId);
-//        if (!user) return res.status(404).send('User not found');
-//        res.send(user);
-//    } catch(e) {
-//        res.status(500).send(e);
-//    }
-//})
-
-// router.patch('/users/me', authentification, async (req, res, next) => {
-//     const updatedInfo = Object.keys(req.body);
-
-//     try {
-//         updatedInfo.forEach(update => req.user[update] = req.body[update]);
-//         await req.user.save();
-//         res.send(req.user);
-//     } catch(e) {
-//         res.status(500).send(e);
-//     }
-// })
-
-// router.delete('/users/me', authentification, async (req, res, next) => {
-//     try {
-//         await req.user.remove();
-//         res.send(req.user);
-//     } catch(e) {
-//         res.status(500).send(e);
-//     }
-// })
-
 router.post('/users/login', async (req, res) => {
-    console.log(`Login attempt for email: ${req.body.email}`);
     try {
         if (!req.body.email || !req.body.password) {
-            console.log('Missing email or password');
             return res.status(400).send({ message: 'Email and password are required' });
         }
-        
-        console.log('Finding user in database...');
+
         const user = await User.findUser(req.body.email, req.body.password);
-        console.log(`User found: ${user._id}`);
-        
-        console.log('Generating auth token...');
         const authToken = await user.generateAuthTokenAndSaveUser();
-        console.log('Auth token generated successfully');
-        
-        console.log(`Successful login for user: ${user.email} (${user._id})`);
-        res.send({user, authToken});
+
+        res.send({ user, authToken });
     } catch(e) {
-        console.log(`Failed login attempt for ${req.body.email}: ${e.message}`);
-        res.status(400).send({ message: e.message || 'Login failed' });
+        res.status(400).send({ message: 'Invalid email or password' });
     }
 })
 
@@ -152,21 +127,11 @@ router.post('/users/logout', authentification, async (req, res) => {
         await req.user.save();
         res.send();
     } catch(e) {
-        res.status(400).send(e);
+        sendUserError(res, e, 'Error logging out');
     }
 })
 
-// router.post('/users/logout/all', authentification, async (req, res) => {
-//     try {
-//         req.user.authTokens = [];
-//         await req.user.save();
-//         res.send();
-//     } catch(e) {
-//         res.status(400).send(e);
-//     }
-// })
-
-router.get('/users/me', authentification, async (req, res, next) => {
+router.get('/users/me', authentification, async (req, res) => {
     res.send(req.user);
 })
 

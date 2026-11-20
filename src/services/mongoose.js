@@ -3,16 +3,14 @@ const mongoose = require('mongoose');
 
 async function connectDb() {
   const options = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
     family: 4
   };
-  
-  // Get MongoDB URL from environment variable or use a fallback for development
-  const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://amoyavalls:IEHQ4ksdLTyMMZed@cluster0.pa3o6zg.mongodb.net/gogain?retryWrites=true&w=majority&appName=Cluster0';
-  
+
+  // The connection string must come from the environment — never hard-code credentials.
+  const mongoUrl = process.env.MONGO_URL;
+
   if (!mongoUrl) {
     throw new Error('MongoDB URL is required. Set the MONGO_URL environment variable.');
   }

@@ -2,44 +2,42 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('./src/models/user');
 
-async function createTestUser() {
+// Creates the first admin account. Credentials come from the environment:
+//   MONGO_URL=... ADMIN_EMAIL=... ADMIN_PASSWORD=... node create-test-user.js
+async function createAdminUser() {
+  const { MONGO_URL, ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
+
+  if (!MONGO_URL || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    console.error('MONGO_URL, ADMIN_EMAIL and ADMIN_PASSWORD must be set.');
+    process.exit(1);
+  }
+
   try {
-    // Get MongoDB URL from environment variable or use the fallback
-    const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://amoyavalls:IEHQ4ksdLTyMMZed@cluster0.pa3o6zg.mongodb.net/gogain?retryWrites=true&w=majority&appName=Cluster0';
-    
     console.log('Connecting to MongoDB...');
-    await mongoose.connect(mongoUrl, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
+    await mongoose.connect(MONGO_URL);
     console.log('Connected to MongoDB');
-    
-    // Check if admin user already exists
-    const existingUser = await User.findOne({ email: 'admin@gogain.com' });
+
+    const existingUser = await User.findOne({ email: ADMIN_EMAIL });
     if (existingUser) {
-      console.log('Admin user already exists');
+      console.log(`User ${ADMIN_EMAIL} already exists`);
       await mongoose.disconnect();
       return;
     }
-    
-    // Create admin user
+
     const adminUser = new User({
       firstName: 'Admin',
       lastName: 'User',
-      email: 'admin@gogain.com',
-      password: 'GogainAdmin123!',
-      phoneNumber: '0123456789',
-      birthdate: new Date('1990-01-01'),
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
       centers: [],
       services: [],
+      percentage: 100,
       isAdmin: true
     });
-    
+
     await adminUser.save();
-    console.log('Admin user created successfully');
-    console.log('Email: admin@gogain.com');
-    console.log('Password: GogainAdmin123!');
-    
+    console.log(`Admin user ${ADMIN_EMAIL} created successfully`);
+
     await mongoose.disconnect();
   } catch (error) {
     console.error('Error creating admin user:', error);
@@ -47,4 +45,4 @@ async function createTestUser() {
   }
 }
 
-createTestUser(); 
+createAdminUser();

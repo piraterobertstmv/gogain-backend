@@ -4,15 +4,33 @@ const CostTransaction = require('../models/costTransaction');
 const Client = require('../models/client');
 const mongoose = require('mongoose');
 const authentification = require('../middlewares/authentification');
+const { ownershipFilter, sanitizeTransactionBody } = require('../services/ownership');
+const { BadRequest, buildTransactionFilter, parsePaging, isPagedRequest } = require('../services/query');
 const router = new express.Router();
 
-// Helper function to create client if it doesn't exist
-async function handleClientCreation(clientValue) {
-    // If clientValue is a valid ObjectId, it's an existing client
-    if (mongoose.Types.ObjectId.isValid(clientValue)) {
+// A real ObjectId string is exactly 24 hex chars.
+// (mongoose.Types.ObjectId.isValid() also accepts ANY 12-character string,
+// so a client named e.g. "Juan Morales" was mistaken for an id.)
+function isObjectIdString(value) {
+    return typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value);
+}
+
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Helper function to create client if it doesn't exist.
+// Suppliers are stored as free text on the transaction, not as Client documents.
+async function handleClientCreation(clientValue, typeOfClient) {
+    if (typeOfClient === 'supplier') {
+        return typeof clientValue === 'string' ? clientValue.trim() : clientValue;
+    }
+
+    // If clientValue is an ObjectId string, it's an existing client
+    if (isObjectIdString(clientValue)) {
         return clientValue;
     }
-    
+
     // If clientValue is a string, it's a new client name - create the client
     if (typeof clientValue === 'string' && clientValue.trim()) {
         const clientName = clientValue.trim();
@@ -59,7 +77,7 @@ async function handleClientCreation(clientValue) {
 }
 
 // Add this new endpoint to get the last transaction index
-router.get('/transactions/last-index', async (req, res, next) => {
+router.get('/transactions/last-index', authentification, async (req, res, next) => {
     try {
         // Find the transaction with the highest index
         const lastTransaction = await Transaction.findOne({})
@@ -76,13 +94,13 @@ router.get('/transactions/last-index', async (req, res, next) => {
     }
 });
 
-router.post('/transaction', async (req, res, next) => {
+router.post('/transaction', authentification, async (req, res, next) => {
     try {
-        const transactionData = { ...req.body };
-        
+        const transactionData = sanitizeTransactionBody(req, req.body, { isCreate: true });
+
         // Handle client creation if needed
         if (transactionData.client) {
-            transactionData.client = await handleClientCreation(transactionData.client);
+            transactionData.client = await handleClientCreation(transactionData.client, transactionData.typeOfClient);
         }
         
         const transaction = new Transaction(transactionData);
@@ -94,43 +112,38 @@ router.post('/transaction', async (req, res, next) => {
     }
 });
 
-router.get('/transaction', async (req, res, next) => {
+router.get('/transaction', authentification, async (req, res, next) => {
     try {
-        const transactions = await Transaction.find({});
-        
-        // Ensure client names are properly exposed
-        const formattedTransactions = transactions.map(transaction => {
-            const transObj = transaction.toObject();
-            
-            // If we have a clientName, make it more visible in the API response
-            if (transObj.clientName) {
-                transObj.clientDisplayName = transObj.clientName;
-            }
-            
-            // Do the same for center and service
-            if (transObj.centerName) {
-                transObj.centerDisplayName = transObj.centerName;
-            }
-            
-            if (transObj.serviceName) {
-                transObj.serviceDisplayName = transObj.serviceName;
-            }
-            
-            return transObj;
-        });
-        
-        res.status(200).send({ transactions: formattedTransactions });
+        // .lean() returns plain objects instead of full Mongoose documents — much faster for
+        // thousands of rows. The *DisplayName copies that used to be added here weren't used
+        // by the frontend and showed up as extra table cells, so they're gone.
+        const filter = buildTransactionFilter(req);
+
+        // Paged: ?page=0&limit=100 (+ center/client/worker/service/from/to filters)
+        if (isPagedRequest(req.query)) {
+            const { page, limit, skip } = parsePaging(req.query);
+            const [transactions, total] = await Promise.all([
+                Transaction.find(filter).sort({ date: 1, _id: 1 }).skip(skip).limit(limit).lean(),
+                Transaction.countDocuments(filter)
+            ]);
+            return res.status(200).send({ transactions, total, page, limit });
+        }
+
+        // Unpaged (full list) — used by the CSV export
+        const transactions = await Transaction.find(filter).sort({ date: 1, _id: 1 }).lean();
+        res.status(200).send({ transactions });
     } catch(e) {
+        if (e instanceof BadRequest) return res.status(400).send({ message: e.message });
         console.error('Error fetching transactions:', e);
         res.status(400).send(e);
     }
 });
 
-router.get('/transaction/:id', async (req, res, next) => {
+router.get('/transaction/:id', authentification, async (req, res, next) => {
     const transactionId = req.params.id;
 
     try {
-        const transaction = await Transaction.findOne({ _id: transactionId });
+        const transaction = await Transaction.findOne({ _id: transactionId, ...ownershipFilter(req) });
         
         if (!transaction) {
             return res.status(404).send({ error: 'Transaction not found' });
@@ -159,47 +172,65 @@ router.get('/transaction/:id', async (req, res, next) => {
     }
 });
 
-router.patch('/transaction/:id', async (req, res, next) => {
+router.patch('/transaction/:id', authentification, async (req, res, next) => {
     const transactionId = req.params.id;
-    const transactionModified = req.body;
+    const transactionModified = sanitizeTransactionBody(req, req.body, { isCreate: false });
 
     try {
-        await Transaction.updateOne({ _id: transactionId }, { $set: transactionModified });
+        if (transactionModified.client) {
+            const typeOfClient = transactionModified.typeOfClient
+                ?? (await Transaction.findOne({ _id: transactionId, ...ownershipFilter(req) }, { typeOfClient: 1 }))?.typeOfClient;
+            transactionModified.client = await handleClientCreation(transactionModified.client, typeOfClient);
+        }
+
+        const result = await Transaction.updateOne(
+            { _id: transactionId, ...ownershipFilter(req) },
+            { $set: transactionModified },
+            { runValidators: true }
+        );
+        if (result.matchedCount === 0) {
+            return res.status(404).send({ error: 'Transaction not found' });
+        }
         const updatedTransaction = await Transaction.find({ _id: transactionId });
-        res.status(201).send({ transactionId, updatedTransaction });
+        res.status(200).send({ transactionId, updatedTransaction });
     } catch(e) {
         res.status(400).send(e);
     }
 });
 
-router.delete('/transaction/:id', async (req, res, next) => {
+router.delete('/transaction/:id', authentification, async (req, res, next) => {
     const transactionId = req.params.id;
 
     try {
-        const deleteInfos = await Transaction.deleteOne({ _id: transactionId });
-        res.status(201).send({ transactionId, deleteInfos });
+        const deleteInfos = await Transaction.deleteOne({ _id: transactionId, ...ownershipFilter(req) });
+        if (deleteInfos.deletedCount === 0) {
+            return res.status(404).send({ error: 'Transaction not found' });
+        }
+        res.status(200).send({ transactionId, deleteInfos });
     } catch(e) {
         res.status(400).send(e);
     }
 });
 
-router.post('/transactions/batch', async (req, res, next) => {
+router.post('/transactions/batch', authentification, async (req, res, next) => {
     try {
         // Expect an array of transaction objects in the request body
-        const { transactions, options } = req.body;
-        
+        const { transactions } = req.body;
+
         if (!Array.isArray(transactions)) {
             return res.status(400).send({ error: 'Expected an array of transactions' });
         }
-        
-        // Map original names to the proper fields for storage in the database
-        const processedTransactions = await Promise.all(transactions.map(async transaction => {
-            // Create a copy of the transaction to avoid mutating the original
-            const processedTransaction = { ...transaction };
-            
+
+        // Processed one at a time (not Promise.all) so that two rows with the same
+        // new client name don't both create a duplicate client.
+        const processedTransactions = [];
+        for (const transaction of transactions) {
+            // Create a sanitized copy of the transaction to avoid mutating the original
+            const processedTransaction = sanitizeTransactionBody(req, transaction, { isCreate: true });
+
             // Handle client creation if needed
             if (processedTransaction.client) {
-                processedTransaction.client = await handleClientCreation(processedTransaction.client);
+                processedTransaction.client = await handleClientCreation(processedTransaction.client, processedTransaction.typeOfClient);
             }
             
             // Keep the index field as provided by the frontend
@@ -240,9 +271,9 @@ router.post('/transactions/batch', async (req, res, next) => {
             delete processedTransaction._clientDisplay;
             delete processedTransaction._centerDisplay;
             delete processedTransaction._serviceDisplay;
-            
-            return processedTransaction;
-        }));
+
+            processedTransactions.push(processedTransaction);
+        }
         
         // Create and save all transactions
         const savedTransactions = await Transaction.insertMany(processedTransactions);
@@ -503,7 +534,7 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 
                 // First try exact match
                 let cost = await Cost.findOne({ 
-                    name: { $regex: new RegExp(`^${costName}$`, 'i') } 
+                    name: { $regex: new RegExp(`^${escapeRegex(costName.trim())}$`, 'i') }
                 });
                 
                 if (cost) {
@@ -698,7 +729,7 @@ router.post('/api/import-pdf-transactions', authentification, async (req, res, n
                 }
                 
                 // Handle client creation from clientName
-                const clientId = await handleClientCreation(clientName);
+                const clientId = await handleClientCreation(clientName, typeOfClient);
                 
                 // Get user's assigned center (user who extracts PDF determines center)
                 const centerId = getDefaultCenterForUser(req.user);
